@@ -8,4 +8,6 @@ module org.svalero.imageeditor {
 
     opens org.svalero.imageeditor to javafx.fxml;
     exports org.svalero.imageeditor;
+    exports org.svalero.imageeditor.controller;
+    opens org.svalero.imageeditor.controller to javafx.fxml;
 }
