@@ -1,43 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<?import java.lang.String?>
 <?import javafx.collections.FXCollections?>
-<?import javafx.scene.control.Button?>
-<?import javafx.scene.control.ChoiceBox?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Menu?>
-<?import javafx.scene.control.MenuBar?>
-<?import javafx.scene.control.MenuItem?>
-<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.*?>
 <?import javafx.scene.image.ImageView?>
-<?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.VBox?>
-
+<?import javafx.scene.layout.*?>
+<?import java.lang.String?>
 <BorderPane xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.svalero.imageeditor.controller.MainController">
     <top>
         <MenuBar>
             <Menu text="Archivo">
-                <MenuItem onAction="#handleOpenImage" text="Abrir Imagen" />
-                <MenuItem onAction="#handleBatchProcessing" text="Procesar Lote" />
-                <MenuItem onAction="#handleExit" text="Salir" />
+                <MenuItem text="Abrir Imágenes" onAction="#handleOpenImages" />
+                <MenuItem text="Salir" onAction="#handleExit" />
             </Menu>
         </MenuBar>
     </top>
     <center>
-        <HBox alignment="CENTER" spacing="10">
-            <VBox>
-                <Label text="Original" />
-                <ImageView fx:id="imageViewOriginal" fitHeight="300" fitWidth="300" preserveRatio="true" />
-            </VBox>
-            <VBox>
-                <Label text="Procesada" />
-                <ImageView fx:id="imageViewProcessed" fitHeight="300" fitWidth="300" preserveRatio="true" />
-            </VBox>
-        </HBox>
+        <!-- TabPane que contendrá pestañas dinámicamente -->
+        <TabPane fx:id="tabPane"/>
     </center>
     <bottom>
         <VBox alignment="CENTER" spacing="10">
+            <ListView fx:id="historyListView" prefHeight="200.0" prefWidth="200.0" />
             <ProgressBar fx:id="progressBar" prefHeight="18.0" prefWidth="607.0" />
             <ChoiceBox fx:id="filterChoiceBox">
                 <items>
@@ -55,6 +37,4 @@
             </HBox>
         </VBox>
     </bottom>
-
 </BorderPane>
-
