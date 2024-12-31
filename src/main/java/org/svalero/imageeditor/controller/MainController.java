@@ -10,6 +10,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.svalero.imageeditor.models.ImageProcessor;
+import org.svalero.imageeditor.models.ProcessedImageHistory;
 
 import javax.imageio.ImageIO;
 import java.io.File;
@@ -42,7 +43,9 @@ public class MainController {
         ImageView imageViewProcessed;
         Stack<Image> undoStack = new Stack<>();
         Stack<Image> redoStack = new Stack<>();
+        Image currentProcessedImage; // Imagen actual después de filtros
     }
+
 
     private final List<TabContent> tabContents = new ArrayList<>();
 
@@ -105,43 +108,107 @@ public class MainController {
         int selectedIndex = tabPane.getTabs().indexOf(selectedTab);
         TabContent content = tabContents.get(selectedIndex);
 
-        if (content.imageViewOriginal.getImage() == null) {
-            showAlert("Error", "No hay imagen cargada en esta pestaña.");
-            return;
-        }
-
-        if (content.imageViewProcessed.getImage() != null) {
-            content.undoStack.push(content.imageViewProcessed.getImage());
-            content.redoStack.clear();
-            undoButton.setDisable(false);
-            redoButton.setDisable(true);
+        if (content.currentProcessedImage == null) {
+            content.currentProcessedImage = content.imageViewOriginal.getImage(); // Usar original inicialmente
         }
 
         String selectedFilter = filterChoiceBox.getValue();
         Task<Image> task = new Task<>() {
             @Override
             protected Image call() throws Exception {
-                Image processedImage = content.imageViewOriginal.getImage();
+                updateProgress(0, 1); // Inicializa progreso
 
+                Image processedImage = content.currentProcessedImage;
                 switch (selectedFilter) {
                     case "Escala de Grises":
-                        return processor.applyGrayscale(processedImage);
+                        processedImage = processor.applyGrayscale(processedImage);
+                        break;
                     case "Invertir Colores":
-                        return processor.applyInvert(processedImage);
+                        processedImage = processor.applyInvert(processedImage);
+                        break;
                     case "Aumentar Brillo":
-                        return processor.applyBrightness(processedImage, 1.5);
+                        processedImage = processor.applyBrightness(processedImage, 1.5);
+                        break;
                     default:
                         throw new IllegalArgumentException("Filtro no válido.");
                 }
+
+                updateProgress(1, 1); // Completa progreso
+                return processedImage;
             }
         };
 
-        task.setOnSucceeded(event -> content.imageViewProcessed.setImage(task.getValue()));
-        task.setOnFailed(event -> showAlert("Error", "Error al aplicar el filtro."));
-
         progressBar.progressProperty().bind(task.progressProperty());
-        new Thread(task).start();
+
+        // Manejo de éxito
+        task.setOnSucceeded(event -> {
+            content.undoStack.push(content.currentProcessedImage); // Guarda el estado actual en undoStack
+            content.currentProcessedImage = task.getValue(); // Actualiza la imagen procesada actual
+            content.imageViewProcessed.setImage(content.currentProcessedImage);
+
+            content.redoStack.clear(); // Limpia redoStack, ya que se aplicó un nuevo filtro
+
+            undoButton.setDisable(content.undoStack.isEmpty());
+            redoButton.setDisable(content.redoStack.isEmpty());
+
+            String filterName = filterChoiceBox.getValue();
+            updateHistory(selectedTab.getText(), filterName); // Actualiza historial
+
+            progressBar.progressProperty().unbind();
+            progressBar.setProgress(0);
+            showAlert("Éxito", "Filtro aplicado correctamente.");
+        });
+
+
+        // Manejo de error o cancelación
+        task.setOnFailed(event -> {
+            progressBar.progressProperty().unbind();
+            progressBar.setProgress(0);
+            showAlert("Error", "Error al aplicar el filtro.");
+        });
+
+        task.setOnCancelled(event -> {
+            progressBar.progressProperty().unbind();
+            progressBar.setProgress(0);
+            showAlert("Cancelado", "El filtro fue cancelado.");
+        });
+
+        new Thread(task).start(); // Ejecutar tarea en segundo plano
     }
+
+
+
+
+    @FXML
+    private void handleSaveImage() {
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab == null) {
+            showAlert("Error", "Seleccione una pestaña primero.");
+            return;
+        }
+
+        int selectedIndex = tabPane.getTabs().indexOf(selectedTab);
+        TabContent content = tabContents.get(selectedIndex);
+
+        if (content.imageViewProcessed.getImage() == null) {
+            showAlert("Error", "No hay imagen procesada para guardar.");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Images", "*.png"));
+        File file = fileChooser.showSaveDialog(tabPane.getScene().getWindow());
+
+        if (file != null) {
+            try {
+                ImageIO.write(SwingFXUtils.fromFXImage(content.imageViewProcessed.getImage(), null), "png", file);
+                showAlert("Éxito", "Imagen guardada correctamente.");
+            } catch (IOException e) {
+                showAlert("Error", "No se pudo guardar la imagen.");
+            }
+        }
+    }
+
 
     @FXML
     private void handleUndo() {
@@ -152,14 +219,15 @@ public class MainController {
         TabContent content = tabContents.get(selectedIndex);
 
         if (!content.undoStack.isEmpty()) {
-            Image lastImage = content.undoStack.pop();
-            content.redoStack.push(content.imageViewProcessed.getImage());
-            content.imageViewProcessed.setImage(lastImage);
+            content.redoStack.push(content.currentProcessedImage); // Mueve la actual a redoStack
+            content.currentProcessedImage = content.undoStack.pop(); // Recupera la última de undoStack
+            content.imageViewProcessed.setImage(content.currentProcessedImage); // Actualiza la vista
 
-            redoButton.setDisable(false);
             undoButton.setDisable(content.undoStack.isEmpty());
+            redoButton.setDisable(content.redoStack.isEmpty());
         }
     }
+
 
     @FXML
     private void handleRedo() {
@@ -170,17 +238,18 @@ public class MainController {
         TabContent content = tabContents.get(selectedIndex);
 
         if (!content.redoStack.isEmpty()) {
-            Image nextImage = content.redoStack.pop();
-            content.undoStack.push(content.imageViewProcessed.getImage());
-            content.imageViewProcessed.setImage(nextImage);
+            content.undoStack.push(content.currentProcessedImage); // Mueve la actual a undoStack
+            content.currentProcessedImage = content.redoStack.pop(); // Recupera la siguiente de redoStack
+            content.imageViewProcessed.setImage(content.currentProcessedImage); // Actualiza la vista
 
-            undoButton.setDisable(false);
+            undoButton.setDisable(content.undoStack.isEmpty());
             redoButton.setDisable(content.redoStack.isEmpty());
         }
     }
 
+
     private void showAlert(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
@@ -191,6 +260,45 @@ public class MainController {
     private void handleExit() {
         System.out.println("Saliendo de la aplicación...");
         Platform.exit();
+    }
+
+    @FXML
+    private ListView<String> historyListView;
+    private final ProcessedImageHistory processedImageHistory = new ProcessedImageHistory();
+
+    private void updateHistory(String imageName, String filterName) {
+        processedImageHistory.addEntry(imageName, filterName);
+        historyListView.getItems().add("Imagen: " + imageName + ", Filtro: " + filterName);
+    }
+
+
+    @FXML
+    private void handleApplyFilterToAllTabs() {
+        for (TabContent content : tabContents) {
+            if (content.currentProcessedImage == null) {
+                content.currentProcessedImage = content.imageViewOriginal.getImage();
+            }
+
+            Task<Void> task = new Task<>() {
+                @Override
+                protected Void call() throws Exception {
+                    // Aplicar un filtro genérico, se puede ajustar para más filtros
+                    content.currentProcessedImage = processor.applyGrayscale(content.currentProcessedImage);
+                    return null;
+                }
+            };
+
+            new Thread(task).start(); // Procesa en paralelo
+        }
+    }
+
+    @FXML
+    private void handleShowHistory() {
+        Alert historyAlert = new Alert(Alert.AlertType.INFORMATION);
+        historyAlert.setTitle("Historial de Procesamiento");
+        historyAlert.setHeaderText(null);
+        historyAlert.setContentText(String.join("\n", processedImageHistory.getHistory()));
+        historyAlert.showAndWait();
     }
 
 }

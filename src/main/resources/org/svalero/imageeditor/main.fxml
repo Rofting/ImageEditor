@@ -35,6 +35,7 @@
                 <Button fx:id="undoButton" onAction="#handleUndo" text="Deshacer" />
                 <Button fx:id="redoButton" onAction="#handleRedo" text="Rehacer" />
             </HBox>
+            <Button onAction="#handleSaveImage" text="Guardar Imagen" />
         </VBox>
     </bottom>
 </BorderPane>

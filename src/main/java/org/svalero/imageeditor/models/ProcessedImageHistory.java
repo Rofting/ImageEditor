@@ -6,11 +6,11 @@ import java.util.List;
 public class ProcessedImageHistory {
     private final List<String> history = new ArrayList<>();
 
-    public void addEntry(String entry) {
-        history.add(entry); // Agrega un texto al historial
+    public void addEntry(String imageName, String filterName) {
+        history.add("Imagen: " + imageName + ", Filtro: " + filterName);
     }
 
     public List<String> getHistory() {
-        return history; // Devuelve el historial completo
+        return history;
     }
 }
