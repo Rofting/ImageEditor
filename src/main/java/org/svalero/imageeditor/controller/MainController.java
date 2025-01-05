@@ -94,10 +94,10 @@ public class MainController {
         TabContent content = new TabContent();
         content.imageViewOriginal = new ImageView(originalImage);
         content.imageViewProcessed = new ImageView();
-        content.imageViewOriginal.setFitHeight(277.0);
+        content.imageViewOriginal.setFitHeight(200.0);
         content.imageViewOriginal.setFitWidth(300.0);
         content.imageViewOriginal.setPreserveRatio(true);
-        content.imageViewProcessed.setFitHeight(277.0);
+        content.imageViewProcessed.setFitHeight(200.0);
         content.imageViewProcessed.setFitWidth(300.0);
         content.imageViewProcessed.setPreserveRatio(true);
 
@@ -311,16 +311,6 @@ public class MainController {
             defaultSavePath = selectedDirectory.getAbsolutePath();
             currentSavePathLabel.setText("Ruta Actual: " + defaultSavePath);
         }
-    }
-
-
-    @FXML
-    private void handleShowHistory() {
-        Alert historyAlert = new Alert(Alert.AlertType.INFORMATION);
-        historyAlert.setTitle("Historial de Procesamiento");
-        historyAlert.setHeaderText(null);
-        historyAlert.setContentText(String.join("\n", processedImageHistory.getHistory()));
-        historyAlert.showAndWait();
     }
 
 }
