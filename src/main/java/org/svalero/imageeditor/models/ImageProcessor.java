@@ -83,16 +83,4 @@ public class ImageProcessor {
         }
         return output;
     }
-
-    private String outputPath = System.getProperty("user.home");
-
-    public void setOutputPath(String path) {
-        this.outputPath = path;
-    }
-
-    public void saveProcessedImage(Image image, String fileName) throws IOException {
-        File outputFile = new File(outputPath, fileName);
-        ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", outputFile);
-    }
-
 }
