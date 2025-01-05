@@ -36,6 +36,8 @@
                 <Button fx:id="redoButton" onAction="#handleRedo" text="Rehacer" />
             </HBox>
             <Button onAction="#handleSaveImage" text="Guardar Imagen" />
+            <Button text="Seleccionar Carpeta" onAction="#handleChangeSavePath" />
+            <Label fx:id="currentSavePathLabel" text="Ruta Actual: ..." />
         </VBox>
     </bottom>
 </BorderPane>

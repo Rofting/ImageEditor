@@ -4,10 +4,12 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import org.svalero.imageeditor.models.ImageProcessor;
 import org.svalero.imageeditor.models.ProcessedImageHistory;
@@ -44,19 +46,31 @@ public class MainController {
         Stack<Image> undoStack = new Stack<>();
         Stack<Image> redoStack = new Stack<>();
         Image currentProcessedImage; // Imagen actual después de filtros
+        ProgressBar progressBar;
     }
 
 
     private final List<TabContent> tabContents = new ArrayList<>();
 
+    private String defaultSavePath = System.getProperty("user.home") + File.separator + "ProcessedImages";
+
+    private void ensureDefaultSavePathExists() {
+        File defaultDir = new File(defaultSavePath);
+        if (!defaultDir.exists()) {
+            defaultDir.mkdirs(); // Crea la carpeta si no existe
+        }
+    }
+
     @FXML
     private void initialize() {
+
         filterChoiceBox.getItems().clear();
         filterChoiceBox.getItems().addAll("Escala de Grises", "Invertir Colores", "Aumentar Brillo");
         filterChoiceBox.setValue("Escala de Grises");
 
         undoButton.setDisable(true);
         redoButton.setDisable(true);
+        ensureDefaultSavePathExists();
     }
 
     @FXML
@@ -87,10 +101,17 @@ public class MainController {
         content.imageViewProcessed.setFitWidth(300.0);
         content.imageViewProcessed.setPreserveRatio(true);
 
+        content.progressBar = new ProgressBar(0);
+        content.progressBar.setPrefWidth(300.0);
+
+        VBox tabLayout = new VBox(10);
+        tabLayout.setAlignment(Pos.CENTER); // Alinea el contenido al centro
+        tabLayout.getChildren().addAll(content.imageViewOriginal, content.imageViewProcessed, content.progressBar);
+
+
         tabContents.add(content);
 
         Tab tab = new Tab(file.getName());
-        VBox tabLayout = new VBox(10, content.imageViewOriginal, content.imageViewProcessed);
         tab.setContent(tabLayout);
 
         Platform.runLater(() -> tabPane.getTabs().add(tab));
@@ -118,6 +139,12 @@ public class MainController {
             protected Image call() throws Exception {
                 updateProgress(0, 1); // Inicializa progreso
 
+                int delaySteps = 100;
+                for (int i = 1; i <= delaySteps; i++) {
+                    Thread.sleep(200);
+                    updateProgress(i, delaySteps);
+                }
+
                 Image processedImage = content.currentProcessedImage;
                 switch (selectedFilter) {
                     case "Escala de Grises":
@@ -132,16 +159,16 @@ public class MainController {
                     default:
                         throw new IllegalArgumentException("Filtro no válido.");
                 }
-
-                updateProgress(1, 1); // Completa progreso
                 return processedImage;
             }
         };
 
-        progressBar.progressProperty().bind(task.progressProperty());
+        progressBar.progressProperty().bind(task.progressProperty()); // Cambiar por la barra de progreso específica
+        content.progressBar.progressProperty().bind(task.progressProperty());
 
-        // Manejo de éxito
         task.setOnSucceeded(event -> {
+            content.progressBar.progressProperty().unbind();
+            content.progressBar.setProgress(0);
             content.undoStack.push(content.currentProcessedImage); // Guarda el estado actual en undoStack
             content.currentProcessedImage = task.getValue(); // Actualiza la imagen procesada actual
             content.imageViewProcessed.setImage(content.currentProcessedImage);
@@ -154,10 +181,9 @@ public class MainController {
             String filterName = filterChoiceBox.getValue();
             updateHistory(selectedTab.getText(), filterName); // Actualiza historial
 
-            progressBar.progressProperty().unbind();
-            progressBar.setProgress(0);
             showAlert("Éxito", "Filtro aplicado correctamente.");
         });
+
 
 
         // Manejo de error o cancelación
@@ -195,19 +221,20 @@ public class MainController {
             return;
         }
 
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Images", "*.png"));
-        File file = fileChooser.showSaveDialog(tabPane.getScene().getWindow());
+        // Generar un nombre único para la imagen procesada
+        String originalName = selectedTab.getText();
+        String processedName = originalName.replaceAll("(\\.[^.]+)$", "_filtered$1");
 
-        if (file != null) {
-            try {
-                ImageIO.write(SwingFXUtils.fromFXImage(content.imageViewProcessed.getImage(), null), "png", file);
-                showAlert("Éxito", "Imagen guardada correctamente.");
-            } catch (IOException e) {
-                showAlert("Error", "No se pudo guardar la imagen.");
-            }
+        File saveFile = new File(defaultSavePath, processedName);
+
+        try {
+            ImageIO.write(SwingFXUtils.fromFXImage(content.imageViewProcessed.getImage(), null), "png", saveFile);
+            showAlert("Éxito", "Imagen guardada en: " + saveFile.getAbsolutePath());
+        } catch (IOException e) {
+            showAlert("Error", "No se pudo guardar la imagen.");
         }
     }
+
 
 
     @FXML
@@ -273,24 +300,19 @@ public class MainController {
 
 
     @FXML
-    private void handleApplyFilterToAllTabs() {
-        for (TabContent content : tabContents) {
-            if (content.currentProcessedImage == null) {
-                content.currentProcessedImage = content.imageViewOriginal.getImage();
-            }
+    private Label currentSavePathLabel;
 
-            Task<Void> task = new Task<>() {
-                @Override
-                protected Void call() throws Exception {
-                    // Aplicar un filtro genérico, se puede ajustar para más filtros
-                    content.currentProcessedImage = processor.applyGrayscale(content.currentProcessedImage);
-                    return null;
-                }
-            };
-
-            new Thread(task).start(); // Procesa en paralelo
+    @FXML
+    private void handleChangeSavePath() {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Seleccionar Carpeta de Guardado");
+        File selectedDirectory = directoryChooser.showDialog(tabPane.getScene().getWindow());
+        if (selectedDirectory != null) {
+            defaultSavePath = selectedDirectory.getAbsolutePath();
+            currentSavePathLabel.setText("Ruta Actual: " + defaultSavePath);
         }
     }
+
 
     @FXML
     private void handleShowHistory() {
